@@ -15,6 +15,7 @@
  * @author Thomas Müller <thomas.mueller@tmit.eu>
  * @author Vincent Petry <pvince81@owncloud.com>
  * @author voxsim <Simon Vocella>
+ * @authod Piotr Mrowczynski <piotr@owncloud.com>
  *
  * @copyright Copyright (c) 2017, ownCloud GmbH
  * @license AGPL-3.0
@@ -38,6 +39,7 @@ namespace OC\Group;
 use OC\Hooks\PublicEmitter;
 use OCP\GroupInterface;
 use OCP\IGroupManager;
+use OC\Group\GroupMapper;
 
 /**
  * Class Manager
@@ -55,34 +57,30 @@ use OCP\IGroupManager;
  * @package OC\Group
  */
 class Manager extends PublicEmitter implements IGroupManager {
-	/**
-	 * @var GroupInterface[] $backends
-	 */
+	/** @var GroupInterface[] $backends */
 	private $backends = [];
 
-	/**
-	 * @var \OC\User\Manager $userManager
-	 */
+	/** @var \OC\User\Manager $userManager */
 	private $userManager;
 
-	/**
-	 * @var \OC\Group\Group[]
-	 */
+	/** @var \OC\Group\Group[] */
 	private $cachedGroups = [];
 
-	/**
-	 * @var \OC\Group\Group[]
-	 */
+	/** @var \OC\Group\Group[] */
 	private $cachedUserGroups = [];
 
 	/** @var \OC\SubAdmin */
 	private $subAdmin = null;
 
+	/** @var \OC\Group\GroupMapper */
+	private $groupMapper;
+
 	/**
 	 * @param \OC\User\Manager $userManager
 	 */
-	public function __construct(\OC\User\Manager $userManager) {
+	public function __construct(\OC\User\Manager $userManager, \OC\Group\GroupMapper $groupMapper) {
 		$this->userManager = $userManager;
+		$this->groupMapper = $groupMapper;
 		$cachedGroups = & $this->cachedGroups;
 		$cachedUserGroups = & $this->cachedUserGroups;
 		$this->listen('\OC\Group', 'postDelete', function ($group) use (&$cachedGroups, &$cachedUserGroups) {
@@ -113,23 +111,21 @@ class Manager extends PublicEmitter implements IGroupManager {
 	 * @return bool
 	 */
 	public function isBackendUsed($backendClass) {
-		$backendClass = strtolower(ltrim($backendClass, '\\'));
-
-		foreach ($this->backends as $backend) {
-			if (strtolower(get_class($backend)) === $backendClass) {
-				return true;
-			}
-		}
-
-		return false;
+		$backendClass = ltrim($backendClass, '\\');
+		return isset($this->backends[$backendClass]) ? true : false;
 	}
 
 	/**
 	 * @param \OCP\GroupInterface $backend
 	 */
 	public function addBackend($backend) {
-		$this->backends[] = $backend;
+		$this->backends[get_class($backend)] = $backend;
 		$this->clearCaches();
+	}
+
+	public function getBackend($backendClass) {
+		$backendClass = ltrim($backendClass, '\\');
+		return isset($this->backends[$backendClass]) ? $this->backends[$backendClass] : null;
 	}
 
 	public function clearBackends() {
